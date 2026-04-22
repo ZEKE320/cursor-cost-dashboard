@@ -1,0 +1,1 @@
+"""Cursor cost dashboard package."""
