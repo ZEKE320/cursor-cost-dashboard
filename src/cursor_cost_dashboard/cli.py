@@ -6,6 +6,7 @@ from rich import print
 from cursor_cost_dashboard.config import DEFAULT_OUTPUT_DIR, DEFAULT_TIMEZONE
 from cursor_cost_dashboard.data import load_usage_data
 from cursor_cost_dashboard.plots import (
+    plot_cost_15min_raster,
     plot_cost_raster,
     plot_cost_tokens_scatter,
     plot_model_budget_raster,
@@ -14,6 +15,7 @@ from cursor_cost_dashboard.plots import (
 
 PLOT_BUILDERS = {
     "cost-raster": ("event_raster.png", plot_cost_raster),
+    "cost-15min-raster": ("event_raster_cost_15min.png", plot_cost_15min_raster),
     "model-budget-raster": ("event_raster_model_budget.png", plot_model_budget_raster),
     "total-tokens-raster": ("event_raster_total_tokens.png", plot_total_tokens_raster),
     "cost-tokens-scatter": ("cost_tokens_model_scatter.png", plot_cost_tokens_scatter),

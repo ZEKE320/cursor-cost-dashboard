@@ -3,6 +3,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize
 from matplotlib.lines import Line2D
+from matplotlib.patches import Patch
 import pandas as pd
 import seaborn as sns
 
@@ -54,6 +55,45 @@ def _legend_handles(labels: list[str], color_map: dict[str, str]) -> list[Line2D
         )
         for label in labels
     ]
+
+
+def _legend_patches(labels: list[str], color_map: dict[str, str]) -> list[Patch]:
+    return [Patch(facecolor=color_map[label], edgecolor=color_map[label], label=label) for label in labels]
+
+
+def _format_cost_range_label(name: str, lower: float, upper: float | None) -> str:
+    if upper is None:
+        return f"{name} (USD {lower:,.2f}+)"
+    return f"{name} (USD {lower:,.2f}-{upper:,.2f})"
+
+
+def _cost_quantile_categories(costs: pd.Series) -> tuple[pd.Categorical, list[str], dict[str, str]]:
+    colors = list(CATEGORY_COLORS.values())
+    names = [label.split(" (", maxsplit=1)[0] for label in CATEGORY_ORDER]
+    unique_cost_count = costs.nunique()
+    if unique_cost_count <= 1:
+        value = costs.iloc[0]
+        label = _format_cost_range_label(names[0], value, None)
+        return pd.Categorical([label] * len(costs), categories=[label], ordered=True), [label], {label: colors[0]}
+
+    bin_count = min(len(colors), unique_cost_count)
+    _, bins = pd.qcut(costs, q=bin_count, retbins=True, duplicates="drop")
+    selected_names = names[: len(bins) - 1]
+    labels = [
+        _format_cost_range_label(name, lower, None if index == len(selected_names) - 1 else upper)
+        for index, (name, lower, upper) in enumerate(zip(selected_names, bins[:-1], bins[1:], strict=True))
+    ]
+    cut_bins = bins.copy()
+    cut_bins[0] = -float("inf")
+    cut_bins[-1] = float("inf")
+    categories = pd.cut(costs, bins=cut_bins, labels=labels, include_lowest=True)
+    color_indexes = (
+        [0]
+        if len(labels) == 1
+        else [round(index * (len(colors) - 1) / (len(labels) - 1)) for index in range(len(labels))]
+    )
+    color_map = {label: colors[color_index] for label, color_index in zip(labels, color_indexes, strict=True)}
+    return pd.Categorical(categories, categories=labels, ordered=True), labels, color_map
 
 
 def _high_load_reference_points(df: pd.DataFrame) -> pd.DataFrame:
@@ -121,6 +161,48 @@ def plot_cost_raster(df: pd.DataFrame, output_path: Path) -> None:
         bbox_to_anchor=(1.02, 1),
         title="Cost per event",
         handles=_legend_handles(CATEGORY_ORDER, CATEGORY_COLORS),
+    )
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=200, bbox_inches="tight")
+    plt.close(fig)
+
+
+def plot_cost_15min_raster(df: pd.DataFrame, output_path: Path) -> None:
+    plot_df = (
+        df.loc[:, ["Date", "Cost"]]
+        .assign(Cost=lambda x: pd.to_numeric(x["Cost"], errors="coerce"))
+        .dropna(subset=["Date"])
+        .assign(Date=lambda x: x["Date"].dt.floor("15min"), Cost=lambda x: x["Cost"].fillna(0))
+        .groupby("Date", as_index=False, observed=True)
+        .agg(Cost=("Cost", "sum"))
+        .pipe(_add_event_base)
+    )
+    categories, category_order, color_map = _cost_quantile_categories(plot_df["Cost"])
+    plot_df = plot_df.assign(Category=categories)
+    day_order, day_to_index = _day_index_map(plot_df)
+    plot_df = plot_df.assign(DayIndex=lambda x: x["Day"].map(day_to_index)).sort_values(
+        ["Category", "Day", "TimeHour"],
+        kind="stable",
+    )
+
+    sns.set_theme(style="whitegrid")
+    fig, ax = plt.subplots(figsize=(12, max(3, len(day_order) * 0.8)))
+    ax.barh(
+        y=plot_df["DayIndex"],
+        width=0.25,
+        left=plot_df["TimeHour"],
+        height=0.56,
+        color=plot_df["Category"].map(color_map),
+        edgecolor="none",
+        align="center",
+    )
+    _finalize_event_axis(ax, day_order)
+    ax.set_title("15-Min Cost by Day")
+    ax.legend(
+        handles=_legend_patches(category_order, color_map),
+        title="Cost per 15 min",
+        loc="upper left",
+        bbox_to_anchor=(1.02, 1),
     )
     fig.tight_layout()
     fig.savefig(output_path, dpi=200, bbox_inches="tight")

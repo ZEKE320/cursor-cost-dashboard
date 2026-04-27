@@ -5,6 +5,7 @@ Cursor の利用コストの傾向を複数プロットで可視化します。
 ## できること
 
 - `cost-raster`: コスト帯を段階別に色分けしたラスタープロット
+- `cost-15min-raster`: 15分ごとの合計コストを、入力データ内の分布に基づくレンジで色分けしたラスタープロット
 - `model-budget-raster`: 使用モデルと Max Mode の組み合わせで色分けしたラスタープロット
 - `total-tokens-raster`: `Total Tokens` を連続値として色付けしたラスタープロット
 - `cost-tokens-scatter`: `Total Tokens` と `Cost` の散布図。モデルごとの傾向線と高負荷帯の代表点を重ね表示
@@ -34,4 +35,5 @@ uv run cursor-cost-dashboard --csv /path/to/team-usage-events.csv --output-dir o
 
 - 時刻は `JST` に揃えて描画します
 - `cost-raster` では `0` と欠損を同一扱いにしています
+- `cost-15min-raster` では15分ごとにコストを合計し、集計後のコスト分布から色分けレンジを決めます
 - モデル提供者はモデル名の接頭辞から判別できるものだけを明示し、曖昧なものは `Unspecified` としています
